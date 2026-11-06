@@ -7,3 +7,10 @@ __pycache__/
 .coverage
 htmlcov/
 *.log
+*.pem
+*.crt
+*.key
+*.conf
+.netradar*
+.env
+

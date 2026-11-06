@@ -69,6 +69,24 @@ class TestRouterOSRestAdapter:
         with pytest.raises(ValueError, match="CA certificate path is invalid"):
             RouterOSRestAdapter(cfg)
 
+    async def test_load_from_toml(self, tmp_path: Path):
+        toml_file = tmp_path / "config.toml"
+        toml_file.write_text(
+            'host = "10.0.0.1"\n'
+            'port = 8443\n'
+            'username = "admin"\n'
+            'password = "secret"\n'
+            'ca_path = "certs/ca.pem"\n'
+            'wan_interface = "sfp-sfpplus1"\n',
+            encoding="utf-8"
+        )
+        loaded = RouterOSConfig.from_file(toml_file)
+        assert loaded.host == "10.0.0.1"
+        assert loaded.port == 8443
+        assert loaded.username == "admin"
+        assert loaded.ca_path == "certs/ca.pem"
+        assert loaded.wan_interface == "sfp-sfpplus1"
+
     async def test_get_system_health(self, router_config: RouterOSConfig):
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/rest/system/resource":

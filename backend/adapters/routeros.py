@@ -19,14 +19,23 @@ class RouterOSConfig(BaseModel):
     password: str
     ca_path: str = Field(description="Mandatory path to the router CA certificate")
     wan_interface: str = "ether1"
+    check_hostname: bool = Field(
+        default=True,
+        description="Verify hostname against certificate SAN/CN. Can be set to false for IP-based access with self-signed certs.",
+    )
 
     @classmethod
     def from_file(cls, path: str | Path) -> "RouterOSConfig":
         config_path = Path(path)
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        if config_path.suffix.lower() == ".toml":
+            import tomllib
+            with open(config_path, "rb") as f:
+                data = tomllib.load(f)
+        else:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
         return cls(**data)
 
     @classmethod
@@ -61,10 +70,14 @@ class RouterOSRestAdapter(BaseNetworkAdapter):
                     f"CA certificate path is invalid or does not exist: {config.ca_path}. "
                     "Insecure HTTPS (verify=False) is forbidden."
                 )
+            import ssl
+            ssl_ctx = ssl.create_default_context(cafile=config.ca_path)
+            if not config.check_hostname:
+                ssl_ctx.check_hostname = False
             self.client = httpx.AsyncClient(
                 base_url=f"https://{config.host}:{config.port}/rest",
                 auth=(config.username, config.password),
-                verify=config.ca_path,
+                verify=ssl_ctx,
                 timeout=5.0,
             )
 
