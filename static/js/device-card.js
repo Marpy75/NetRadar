@@ -50,21 +50,21 @@ export class DeviceCard {
     if (!device || device.ip !== this.currentIp) return;
 
     this.iconEl.src = `/icons/${device.device_type || "generic"}.svg`;
-    this.hostnameEl.textContent = device.hostname || device.ip;
+    this.hostnameEl.textContent = device.hostname || device.comment || device.ip;
 
-    const status = device.status || "active";
+    const status = device.status || "connected";
     this.statusEl.textContent = status;
     this.statusEl.className = `dc-status badge ${status}`;
 
     this.ipEl.textContent = device.ip || "--";
     this.macEl.textContent = device.mac || "--";
     this.typeEl.textContent = device.device_type || "generic";
-    this.vendorEl.textContent = device.oui_vendor || "Unknown";
+    this.vendorEl.textContent = device.vendor || "Unknown";
 
     // Wi-Fi signal
-    if (device.wifi_signal !== null && device.wifi_signal !== undefined) {
+    if (device.wifi_signal_dbm !== null && device.wifi_signal_dbm !== undefined) {
       this.wifiSection.hidden = false;
-      const sig = device.wifi_signal;
+      const sig = device.wifi_signal_dbm;
       this.signalDbm.textContent = `${sig} dBm`;
 
       let levelClass = "s1";
@@ -79,19 +79,19 @@ export class DeviceCard {
       this.wifiSection.hidden = true;
     }
 
-    // Traffic rates
-    this.rateRx.textContent = this._formatBps(device.rate_bytes_rx || 0);
-    this.rateTx.textContent = this._formatBps(device.rate_bytes_tx || 0);
-    this.totalRx.textContent = this._formatBytes(device.bytes_rx || 0);
-    this.totalTx.textContent = this._formatBytes(device.bytes_tx || 0);
+    // Traffic rates (bps / 8 = B/s)
+    this.rateRx.textContent = this._formatBps((device.rate_rx_bps || 0) / 8);
+    this.rateTx.textContent = this._formatBps((device.rate_tx_bps || 0) / 8);
+    this.totalRx.textContent = this._formatBytes(device.total_rx_bytes || 0);
+    this.totalTx.textContent = this._formatBytes(device.total_tx_bytes || 0);
 
     // Top destinations
     if (device.top_destinations && device.top_destinations.length > 0) {
       this.destsSection.hidden = false;
       this.destsList.innerHTML = device.top_destinations.map(d => `
         <li class="dc-dest-item">
-          <span class="dc-dest-name">${this._escape(d.domain || d.ip)}</span>
-          <span class="dc-dest-bytes">${this._formatBytes(d.bytes)}</span>
+          <span class="dc-dest-name">${this._escape(d.domain || d.destination)}</span>
+          <span class="dc-dest-bytes">${this._formatBytes(d.bytes_count || 0)}</span>
         </li>
       `).join("");
     } else {

@@ -139,8 +139,16 @@ def create_app(adapter: BaseNetworkAdapter) -> FastAPI:
 
     # WebSocket state stream
     @app.websocket("/ws/network")
+    @app.websocket("/ws")
     async def websocket_endpoint(ws: WebSocket) -> None:
         await manager.connect(ws)
+        # Send initial state immediately upon connection
+        try:
+            agg = get_aggregator()
+            initial_frame = await agg.build_frame()
+            await ws.send_text(initial_frame.model_dump_json())
+        except Exception as exc:
+            logger.debug("Could not send immediate initial frame: %s", exc)
         try:
             while True:
                 # Keep connection alive; client may send pings

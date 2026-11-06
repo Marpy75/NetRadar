@@ -35,20 +35,20 @@ export class ParticleSystem {
         if (!clientPos) continue;
 
         // Density determined by rate (spawn probability)
-        const totalBps = (flow.bps_in || 0) + (flow.bps_out || 0);
-        const spawnProb = Math.min(0.4, 0.05 + totalBps / 2000000);
+        const bytesPerSec = flow.bytes_per_sec || 0;
+        const spawnProb = Math.min(0.4, 0.05 + bytesPerSec / 250000);
 
         if (Math.random() < spawnProb && this.particles.length < this.maxParticles) {
           const proto = (flow.protocol || "tcp").toLowerCase();
           const color = PROTOCOL_COLORS[proto] || PROTOCOL_COLORS.other;
 
-          // Outbound: client -> router, Inbound: router -> client
-          const isInbound = (flow.bps_in || 0) >= (flow.bps_out || 0);
+          // Outbound/inbound direction alternating for visual liveliness
+          const isInbound = Math.random() > 0.5;
           const start = isInbound ? routerPos : clientPos;
           const end = isInbound ? clientPos : routerPos;
 
-          // Speed based on traffic
-          const speed = 0.008 + Math.min(0.03, totalBps / 50000000);
+          // Speed based on traffic volume
+          const speed = 0.008 + Math.min(0.03, bytesPerSec / 5000000);
 
           this.particles.push({
             start,
@@ -56,7 +56,7 @@ export class ParticleSystem {
             progress: 0,
             speed,
             color,
-            size: 2.5 + Math.min(2.5, totalBps / 10000000)
+            size: 2.5 + Math.min(2.5, bytesPerSec / 1000000)
           });
         }
       }

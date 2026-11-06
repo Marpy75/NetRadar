@@ -113,13 +113,14 @@ export class WireGuardWizard {
   }
 
   async _handleStep1() {
+    const allowedRaw = this.modalEl.querySelector("#wg-allowed-ips").value.trim();
     const payload = {
       interface_name: this.modalEl.querySelector("#wg-iface-name").value.trim(),
       listen_port: parseInt(this.modalEl.querySelector("#wg-listen-port").value, 10),
       tunnel_subnet: this.modalEl.querySelector("#wg-tunnel-subnet").value.trim(),
       client_ip: this.modalEl.querySelector("#wg-client-ip").value.trim(),
-      endpoint: this.modalEl.querySelector("#wg-endpoint").value.trim(),
-      allowed_ips: this.modalEl.querySelector("#wg-allowed-ips").value.trim(),
+      server_endpoint: this.modalEl.querySelector("#wg-endpoint").value.trim(),
+      allowed_ips: allowedRaw.split(",").map(s => s.trim()).filter(Boolean),
       dns: this.modalEl.querySelector("#wg-dns").value.trim()
     };
 
@@ -138,7 +139,11 @@ export class WireGuardWizard {
         client_public_key: data.client_public_key
       };
 
-      this.commandsPre.textContent = data.routeros_commands;
+      const cmds = Array.isArray(data.routeros_commands)
+        ? data.routeros_commands.join("\n")
+        : data.routeros_commands;
+
+      this.commandsPre.textContent = cmds;
       this.clientPubSpan.textContent = data.client_public_key;
       this.step1Result.hidden = false;
 
@@ -165,7 +170,7 @@ export class WireGuardWizard {
       client_private_key: this._step1Data.client_private_key,
       server_public_key: serverPub,
       client_ip: this._step1Data.client_ip,
-      endpoint: this._step1Data.endpoint,
+      server_endpoint: this._step1Data.server_endpoint,
       allowed_ips: this._step1Data.allowed_ips,
       dns: this._step1Data.dns
     };
@@ -179,19 +184,20 @@ export class WireGuardWizard {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      this._showFinalResult("", data.client_config, data.qr_svg);
+      this._showFinalResult("", data.client_config_text, data.qr_svg);
     } catch (err) {
       alert("Failed to finalize WireGuard configuration: " + err.message);
     }
   }
 
   async _handleAddPeer() {
+    const allowedRaw = this.modalEl.querySelector("#ap-allowed-ips").value.trim();
     const payload = {
       interface_name: this.modalEl.querySelector("#ap-iface-name").value.trim(),
       server_public_key: this.modalEl.querySelector("#ap-server-pub").value.trim(),
       client_ip: this.modalEl.querySelector("#ap-client-ip").value.trim(),
-      endpoint: this.modalEl.querySelector("#ap-endpoint").value.trim(),
-      allowed_ips: this.modalEl.querySelector("#ap-allowed-ips").value.trim(),
+      server_endpoint: this.modalEl.querySelector("#ap-endpoint").value.trim(),
+      allowed_ips: allowedRaw.split(",").map(s => s.trim()).filter(Boolean),
       dns: this.modalEl.querySelector("#ap-dns").value.trim()
     };
 
@@ -209,7 +215,7 @@ export class WireGuardWizard {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      this._showFinalResult(data.routeros_commands, data.client_config, data.qr_svg);
+      this._showFinalResult(data.routeros_command, data.client_config_text, data.qr_svg);
     } catch (err) {
       alert("Failed to create WireGuard peer: " + err.message);
     }

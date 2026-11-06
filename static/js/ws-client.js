@@ -2,7 +2,7 @@
  * WebSocket client with automatic reconnection
  */
 export class WsClient {
-  constructor(path = "/ws") {
+  constructor(path = "/ws/network") {
     this.path = path;
     this.ws = null;
     this.reconnectAttempts = 0;

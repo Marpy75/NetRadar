@@ -8,7 +8,7 @@ import { WireGuardWizard } from "./wireguard-wizard.js";
  */
 class NetRadarApp {
   constructor() {
-    this.wsClient = new WsClient("/ws");
+    this.wsClient = new WsClient("/ws/network");
 
     // UI Elements
     this.wsDot = document.getElementById("ws-dot");
@@ -60,7 +60,6 @@ class NetRadarApp {
   }
 
   _bindEvents() {
-    // Escape key closes modals
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         this.deviceCard.hide();
@@ -85,17 +84,13 @@ class NetRadarApp {
   _onFrame(frame) {
     if (!frame) return;
 
-    // 1. Health & Mode
-    if (frame.health) {
-      this._updateHealth(frame.health);
+    // 1. Health & WAN (frame.system)
+    if (frame.system) {
+      this._updateHealth(frame.system);
+      this._updateWan(frame.system);
     }
 
-    // 2. WAN & Sparkline
-    if (frame.wan) {
-      this._updateWan(frame.wan, frame.health?.active_connections);
-    }
-
-    // 3. Graph & Particles
+    // 2. Graph & Devices
     if (frame.devices) {
       this.graph.updateData(frame.devices, frame.flows);
 
@@ -108,40 +103,42 @@ class NetRadarApp {
       this._updateTopDevices(frame.devices);
     }
 
-    // 4. WireGuard Peers
+    // 3. WireGuard Peers
     if (frame.wireguard_peers) {
       this._updateWireguard(frame.wireguard_peers);
     }
 
-    // 5. Events Log
+    // 4. Events Log
     if (frame.events) {
       this._updateEvents(frame.events);
     }
   }
 
-  _updateHealth(h) {
-    const cpu = Math.round(h.cpu_load || 0);
+  _updateHealth(s) {
+    const cpu = Math.round(s.cpu_load_percent || 0);
     this.cpuBar.style.width = `${Math.min(100, cpu)}%`;
     this.cpuVal.textContent = `${cpu}%`;
 
-    const totalRam = h.total_memory || 1;
-    const freeRam = h.free_memory || 0;
+    const totalRam = s.total_memory_bytes || 1;
+    const freeRam = s.free_memory_bytes || 0;
     const ramPct = Math.round(((totalRam - freeRam) / totalRam) * 100);
     this.ramBar.style.width = `${Math.min(100, Math.max(0, ramPct))}%`;
     this.ramVal.textContent = `${ramPct}%`;
 
-    this.tempVal.textContent = h.temperature !== null ? `${h.temperature} C` : "--";
-    this.uptimeVal.textContent = this._formatUptime(h.uptime_seconds || 0);
-    this.boardVal.textContent = h.board_name || "RouterOS";
+    this.tempVal.textContent = s.temperature_celsius !== null && s.temperature_celsius !== undefined
+      ? `${s.temperature_celsius} C`
+      : "--";
+    this.uptimeVal.textContent = this._formatUptime(s.uptime_seconds || 0);
+    this.boardVal.textContent = s.board_name || "RouterOS";
   }
 
-  _updateWan(wan, conns) {
-    const dlBps = wan.rate_rx_bps || 0;
-    const ulBps = wan.rate_tx_bps || 0;
+  _updateWan(s) {
+    const dlBps = s.wan_download_bps || 0;
+    const ulBps = s.wan_upload_bps || 0;
 
     this.wanDl.textContent = this._formatBps(dlBps / 8);
     this.wanUl.textContent = this._formatBps(ulBps / 8);
-    this.connCount.textContent = `${conns || 0} conn`;
+    this.connCount.textContent = `${s.active_connections_count || 0} conn`;
 
     // Shift sparkline
     this.dlHistory.shift();
@@ -179,15 +176,15 @@ class NetRadarApp {
       .filter(d => d.status !== "offline")
       .map(d => ({
         ...d,
-        totalRate: (d.rate_bytes_rx || 0) + (d.rate_bytes_tx || 0)
+        totalRateBps: (d.rate_rx_bps || 0) + (d.rate_tx_bps || 0)
       }))
-      .sort((a, b) => b.totalRate - a.totalRate)
+      .sort((a, b) => b.totalRateBps - a.totalRateBps)
       .slice(0, 5);
 
     this.topDevicesList.innerHTML = active.map(d => `
       <li class="device-rank-item" data-ip="${d.ip}">
-        <span class="name">${this._escape(d.hostname || d.ip)}</span>
-        <span class="rate">${this._formatBps(d.totalRate)}</span>
+        <span class="name">${this._escape(d.hostname || d.comment || d.vendor || d.ip)}</span>
+        <span class="rate">${this._formatBps(d.totalRateBps / 8)}</span>
       </li>
     `).join("");
 
@@ -209,8 +206,8 @@ class NetRadarApp {
     this.wgPeerList.innerHTML = peers.map(p => `
       <li class="wg-peer-item">
         <div class="wg-peer-info">
-          <span class="wg-peer-ip">${this._escape(p.allowed_address || p.interface)}</span>
-          <span class="wg-peer-time">${this._formatHandshake(p.last_handshake_seconds)}</span>
+          <span class="wg-peer-ip">${this._escape(p.endpoint_address || p.interface)}</span>
+          <span class="wg-peer-time">${this._escape(p.last_handshake || "never")}</span>
         </div>
         <div class="wg-peer-rates">
           <div>${this._formatBytes(p.rx_bytes)} RX</div>
@@ -254,16 +251,10 @@ class NetRadarApp {
     return `${m}m`;
   }
 
-  _formatHandshake(sec) {
-    if (sec === null || sec === undefined) return "Never";
-    if (sec < 60) return `${sec}s ago`;
-    if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-    return `${Math.floor(sec / 3600)}h ago`;
-  }
-
-  _formatTime(isoString) {
-    if (!isoString) return "";
-    const d = new Date(isoString);
+  _formatTime(timestamp) {
+    if (!timestamp) return "";
+    const ms = timestamp > 10000000000 ? timestamp : timestamp * 1000;
+    const d = new Date(ms);
     return d.toTimeString().split(" ")[0];
   }
 
