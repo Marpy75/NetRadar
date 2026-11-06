@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NetRadar</title>
+  <link rel="stylesheet" href="/css/styles.css"/>
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+
+      <header class="sidebar-header">
+        <img src="/icons/router.svg" class="logo-icon" alt="router"/>
+        <span class="logo-text">NetRadar</span>
+        <span class="mode-badge" id="mode-badge">SIM</span>
+      </header>
+
+      <!-- System Health -->
+      <section class="panel">
+        <h3 class="panel-title">System</h3>
+        <div class="metric-row">
+          <span class="metric-label">CPU</span>
+          <div class="bar-track"><div class="bar-fill" id="cpu-bar"></div></div>
+          <span class="metric-value" id="cpu-val">--%</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">RAM</span>
+          <div class="bar-track"><div class="bar-fill" id="ram-bar"></div></div>
+          <span class="metric-value" id="ram-val">--%</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Temp</span>
+          <span class="metric-value mono" id="temp-val">-- C</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Uptime</span>
+          <span class="metric-value mono" id="uptime-val">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Board</span>
+          <span class="metric-value mono" id="board-val">--</span>
+        </div>
+      </section>
+
+      <!-- WAN Graph -->
+      <section class="panel">
+        <h3 class="panel-title">WAN</h3>
+        <div class="wan-rates">
+          <span class="rate-dl" id="wan-dl">-- bps</span>
+          <span class="rate-sep">/</span>
+          <span class="rate-ul" id="wan-ul">-- bps</span>
+        </div>
+        <svg id="wan-chart" class="sparkline" viewBox="0 0 200 50" preserveAspectRatio="none">
+          <polyline id="wan-chart-dl" fill="none" stroke="#3a6ea5" stroke-width="1.5"/>
+          <polyline id="wan-chart-ul" fill="none" stroke="#34d399" stroke-width="1.5"/>
+        </svg>
+        <div class="sparkline-legend">
+          <span class="legend-dl">DL</span>
+          <span class="legend-ul">UL</span>
+          <span class="metric-value mono" id="conn-count">0 conn</span>
+        </div>
+      </section>
+
+      <!-- Top Devices -->
+      <section class="panel panel-scroll">
+        <h3 class="panel-title">Top Devices</h3>
+        <ul class="device-rank-list" id="top-devices-list"></ul>
+      </section>
+
+      <!-- WireGuard -->
+      <section class="panel panel-scroll">
+        <div class="panel-title-row">
+          <h3 class="panel-title">WireGuard</h3>
+          <button class="btn-sm" id="btn-wg-wizard">Configure</button>
+        </div>
+        <ul class="wg-peer-list" id="wg-peer-list"></ul>
+      </section>
+
+      <!-- Events -->
+      <section class="panel panel-scroll panel-events">
+        <h3 class="panel-title">Events</h3>
+        <ul class="event-list" id="event-list"></ul>
+      </section>
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span class="status-dot" id="ws-dot"></span>
+        <span id="ws-status">Connecting...</span>
+      </div>
+
+    </aside>
+
+    <!-- ===== GRAPH CANVAS ===== -->
+    <main class="canvas-container" id="graph-container"></main>
+
+  </div><!-- .app-layout -->
+
+  <!-- ===== DEVICE CARD ===== -->
+  <div class="device-card" id="device-card" hidden>
+    <div class="dc-header">
+      <img class="dc-icon" id="dc-icon" src="/icons/generic.svg" alt="device"/>
+      <div class="dc-title">
+        <span class="dc-hostname" id="dc-hostname">--</span>
+        <span class="dc-status badge" id="dc-status">--</span>
+      </div>
+      <button class="dc-close" id="dc-close">x</button>
+    </div>
+    <div class="dc-body">
+      <table class="dc-table">
+        <tr><td>IP</td><td class="mono" id="dc-ip">--</td></tr>
+        <tr><td>MAC</td><td class="mono" id="dc-mac">--</td></tr>
+        <tr><td>Type</td><td id="dc-type">--</td></tr>
+        <tr><td>Vendor</td><td id="dc-vendor">--</td></tr>
+      </table>
+
+      <div class="dc-section" id="dc-wifi-section">
+        <div class="dc-section-title">Wi-Fi</div>
+        <div class="dc-wifi-row">
+          <div class="signal-bars" id="dc-signal-bars">
+            <span class="bar b1"></span>
+            <span class="bar b2"></span>
+            <span class="bar b3"></span>
+            <span class="bar b4"></span>
+          </div>
+          <span class="mono" id="dc-signal-dbm">-- dBm</span>
+        </div>
+        <div class="dc-wifi-rates">
+          <span>TX: <span class="mono" id="dc-tx-rate">--</span></span>
+          <span>RX: <span class="mono" id="dc-rx-rate">--</span></span>
+        </div>
+      </div>
+
+      <div class="dc-section">
+        <div class="dc-section-title">Traffic</div>
+        <div class="dc-traffic-row">
+          <span>DL</span><span class="mono" id="dc-rate-rx">--</span>
+          <span>UL</span><span class="mono" id="dc-rate-tx">--</span>
+        </div>
+        <div class="dc-traffic-row">
+          <span>Total</span>
+          <span class="mono" id="dc-total-rx">--</span>
+          <span class="mono" id="dc-total-tx">--</span>
+        </div>
+      </div>
+
+      <div class="dc-section" id="dc-dests-section">
+        <div class="dc-section-title">Top Destinations</div>
+        <ul class="dc-dests-list" id="dc-dests-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== WIREGUARD WIZARD MODAL ===== -->
+  <div class="modal-overlay" id="wg-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2>WireGuard Configuration</h2>
+        <button class="dc-close" id="wg-close">x</button>
+      </div>
+
+      <!-- Mode tabs -->
+      <div class="modal-tabs">
+        <button class="tab-btn active" data-tab="new-iface">New Interface</button>
+        <button class="tab-btn" data-tab="add-peer">Add Peer</button>
+      </div>
+
+      <!-- === NEW INTERFACE === -->
+      <div class="tab-content" id="tab-new-iface">
+
+        <!-- Step 1: parameters -->
+        <div id="wg-step1">
+          <div class="form-grid">
+            <label>Interface name<input class="form-input" id="wg-iface-name" value="wireguard1"/></label>
+            <label>Listen port<input class="form-input" id="wg-listen-port" type="number" value="13231"/></label>
+            <label>Tunnel subnet<input class="form-input" id="wg-tunnel-subnet" value="10.10.0.0/24"/></label>
+            <label>Client IP<input class="form-input" id="wg-client-ip" value="10.10.0.2/32"/></label>
+            <label>Server endpoint<input class="form-input" id="wg-endpoint" value="vpn.example.home:13231"/></label>
+            <label>Allowed IPs<input class="form-input" id="wg-allowed-ips" value="10.10.0.0/24,10.20.0.0/24"/></label>
+            <label>DNS<input class="form-input" id="wg-dns" value="10.20.0.1"/></label>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-primary" id="wg-step1-btn">Generate Step 1</button>
+          </div>
+          <div class="result-block" id="wg-step1-result" hidden>
+            <div class="result-label">RouterOS Commands (copy and run in terminal):</div>
+            <pre class="code-block" id="wg-commands"></pre>
+            <button class="btn-sm" id="wg-copy-cmds">Copy</button>
+            <div class="result-label mt">Client public key: <span class="mono" id="wg-client-pub"></span></div>
+          </div>
+        </div>
+
+        <!-- Step 2: enter server public key -->
+        <div id="wg-step2" hidden>
+          <div class="form-grid">
+            <label>Server public key (from /interface/wireguard print)
+              <input class="form-input" id="wg-server-pub" placeholder="Paste the router public key here"/>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-primary" id="wg-step2-btn">Generate Config</button>
+            <button class="btn-sm" id="wg-step2-back">Back</button>
+          </div>
+        </div>
+
+      </div><!-- tab-new-iface -->
+
+      <!-- === ADD PEER === -->
+      <div class="tab-content" id="tab-add-peer" hidden>
+        <div class="form-grid">
+          <label>Interface name<input class="form-input" id="ap-iface-name" value="wireguard1"/></label>
+          <label>Server public key<input class="form-input" id="ap-server-pub" placeholder="Paste server public key"/></label>
+          <label>Client IP<input class="form-input" id="ap-client-ip" value="10.10.0.3/32"/></label>
+          <label>Server endpoint<input class="form-input" id="ap-endpoint" value="vpn.example.home:13231"/></label>
+          <label>Allowed IPs<input class="form-input" id="ap-allowed-ips" value="10.10.0.0/24,10.20.0.0/24"/></label>
+          <label>DNS<input class="form-input" id="ap-dns" value="10.20.0.1"/></label>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-primary" id="ap-generate-btn">Generate</button>
+        </div>
+      </div>
+
+      <!-- === SHARED RESULT AREA === -->
+      <div id="wg-result" hidden>
+        <div class="result-label">RouterOS Command:</div>
+        <pre class="code-block" id="result-command"></pre>
+        <button class="btn-sm" id="result-copy-cmd">Copy Command</button>
+        <div class="result-label mt">Client Config (.conf):</div>
+        <pre class="code-block" id="result-conf"></pre>
+        <button class="btn-sm" id="result-copy-conf">Copy Config</button>
+        <div class="result-label mt">QR Code (import on mobile WireGuard app):</div>
+        <div id="result-qr" class="qr-container"></div>
+        <div class="result-label warn">The private key is shown above in the config and not stored anywhere.</div>
+        <div class="modal-actions mt">
+          <button class="btn-sm" id="result-new">New Configuration</button>
+        </div>
+      </div>
+
+    </div><!-- .modal -->
+  </div><!-- #wg-modal -->
+
+  <script src="/vendor/pixi.min.js"></script>
+  <script src="/vendor/d3-force.min.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
